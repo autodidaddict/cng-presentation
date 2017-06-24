@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Cloud Native Go</title>
+  <meta charset="utf-8">
+  <style>
+    @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+    @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+    @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+    body {
+      font-family: 'Droid Serif';
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: 'Yanone Kaffeesatz';
+      font-weight: normal;
+    }
+
+    .remark-code,
+    .remark-inline-code {
+      font-family: 'Ubuntu Mono';
+    }
+  </style>
+</head>
+
+<body>
+  <textarea id="source">
+
+class: center, middle
+
+# Cloud Native Go
+
+## Building Scalable, Resilient Microservices for the Cloud in Go
+
+![](cloudgopher2.png)
+
+---
+
+# Agenda
+
+1. Introduction
+2. Boring Stuff
+3. Live Demos
+4. Q & A 
+
+---
+
+# Introduction
+
+.left[![](gopher_avatar.png)] 
+
+* Wrote a few books
+* Maker
+* Tinkerer
+* Linguist 
+* Taught people _how to cloud_ for Pivotal
+* Lead Software Engineer for Capital One 
+
+_Go to **gopherize.me** for your Gopher Avatar_
+
+.right[![](c1logo.png)]
+
+---
+# Why Go?
+
+* Fast
+* Low memory, CPU, and Disk footprint
+* Docker images from `SCRATCH`
+* Fit more containers per node/VM
+* Single, no-dependency binary
+* Beautiful, simple language
+* Short learning curve
+
+.right[![](cloudgopher2.png)]
+
+---
+# Microservices Shopping List
+
+* HTTP Server
+* Routing
+    * URL path variables
+    * Query strings
+* JSON Encode/Decode
+* Middleware (logging, security, etc)
+
+
+---
+# .top[HTTP Server] .top[![](footprints_sm.png)]
+
+```go
+package main
+
+import (
+...
+)
+
+func main() {
+	port := os.Getenv("PORT")
+	if len(port) == 0 {
+		port = "8080"
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", hello)
+
+	n := negroni.Classic()
+	n.UseHandler(mux)
+	hostString := fmt.Sprintf(":%s", port)
+	n.Run(hostString)
+}
+
+func hello(res http.ResponseWriter, req *http.Request) {
+	fmt.Fprintln(res, "Hello from Go!")
+}
+```
+
+---
+# .top[Routing] .top[![](footprints_sm.png)]
+
+Routing with Gorilla Mux
+
+```go
+r := mux.NewRouter()
+r.HandleFunc("/products/{key}", ProductHandler)
+r.HandleFunc("/articles/{category}/", ArticlesCategoryHandler)
+r.HandleFunc("/articles/{category}/{id:[0-9]+}", ArticleHandler)
+```
+
+```go
+s := r.PathPrefix("/zombies").Subrouter()
+s.HandleFunc("/", ZombiesHandler)
+s.HandleFunc("/sightings", NewSightingHandler).Methods("POST")
+s.HandleFunc("/{key}", QueryZombieHandler).Methods("GET")
+```
+
+URLs:
+* `/zombies`
+* `/zombies/sightings` (POST)
+* `/zombies/bob` (GET)
+
+---
+# .top[Routing] .top[![](footprints_sm.png)]
+
+Accessing Route Data
+
+```go
+vars := mux.Vars(req)
+zombieID := vars["zombie-key"]
+```
+
+Building URLs
+
+```go
+r := mux.NewRouter()
+r.HandleFunc("/articles/{category}/{id:[0-9]+}", ArticleHandler).
+  Name("article")
+...
+url, err := r.Get("article").URL("category", "technology", "id", "42")
+```
+
+Builds - `/articles/technology/42`
+
+
+---
+# .top[JSON Marshaling] .top[![](footprints_sm.png)]
+
+Read JSON from Body:
+```go
+payload, _ := ioutil.ReadAll(req.Body)
+var newMatchRequest newMatchRequest
+err := json.Unmarshal(payload, &newMatchRequest)
+```
+
+Write JSON to Response:
+```go
+var mr newMatchResponse
+mr.copyMatch(newMatch)
+w.Header().Add("Location", "/matches/"+newMatch.ID)
+formatter.JSON(w, http.StatusCreated, &mr)
+```
+
+---
+# .top[Middleware] .top[![](footprints_sm.png)]
+
+```go
+apiRouter := mux.NewRouter()
+apiRouter.HandleFunc("/api/post", apiPostHandler(formatter)).Methods("POST")
+
+router.PathPrefix("/api").Handler(negroni.New(
+    negroni.HandlerFunc(isAuthorized(formatter)),
+    negroni.Wrap(apiRouter),
+))
+```
+
+```go
+func isAuthorized(formatter *render.Render) negroni.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		providedKey := r.Header.Get(APIKey)
+		if providedKey == "" {
+			formatter.JSON(w, http.StatusUnauthorized, struct{ Error string }{"Unauthorized."})
+		} else if providedKey != apikey {
+			formatter.JSON(w, http.StatusForbidden, struct{ Error string }{"Insufficient credentials."})
+		} else {
+*			next(w, r)
+		}
+	}
+}
+```
+---
+# .top[Shopping List] .top[![](footprints_sm.png)]
+
+* ✅ HTTP Server
+* ✅ Routing
+    * ✅ URL path variables
+    * ✅ Query strings
+* ✅ JSON Encode/Decode
+* ✅ Middleware (logging, security, etc)
+
+.right[![](shoppingcart.jpg)]
+
+---
+# We're Doing This All Wrong
+
+![](dumpsterfire.jpeg)
+
+???
+Technical term for what we're doing - _dumpster fire_
+
+Stop and ask audience what was missing. What thing did we forget in the shopping list? The thing we're building, of course!
+We went through an entire tech stack without once considering what we're building, why we're building it, or how it's going to be used.
+
+---
+# Do One Thing Great
+
+![](hedgehog.jpg)
+
+> _A fox knows many things, but a hedgehog one important thing - Archilochus_
+
+---
+# Hexagonal Architecture
+
+.right[Ports and Adapters]
+
+![](hexagonal.png)
+
+---
+# Ports and Adapters in Go
+
+* Build your Core Functionality First
+* Decouple HTTP, JSON, Headers, Security from Core Function 
+* Libraries like `go kit` help with decoupling
+* Should be able to _test your core function in isolation_
+* Code is _blissfully ignorant_ of source and nature of inputs and ultimate destination of replies
+
+.right[![](traveladapter.jpg)]
+
+---
+# Ports & Adapters in a μService Ecosystem
+* API Gateways
+* Aggregator Services
+* Message Brokers
+  * Topics
+  * Pub/Sub
+* ACL / Translators (Adapters)
+* Dynamic Service Discovery
+* External Configuration
+* _Adapter paths_ through system
+  * Gateways, Proxies
+  * Translators on Data Streams / Queues
+--
+
+* Hexagonal arch inside and outside of services
+
+---
+# TBD
+
+---
+# The Shopping List We Ignore
+
+* Security
+* Monitoring
+* Log Aggregation
+* Zero Downtime Deployment
+* Build/Deploy Automation
+* Tracing 
+* Metrics
+* Audit
+* Automatic / Dynamic Horizontal Scaling 
+* Configuration
+* Secrets Management 
+* Discovery 
+.right[![](shoppingcart.jpg)]
+
+---
+# Starting at the Core
+
+* Define what we're building
+* Define why we're building it
+* Who are we building it for?
+* _Build the core_
+* Add onion layers around the core 
+  * Ports and Adapters
+* Remember we're building an ecosystem, not _hello world_
+---
+# The Go Shopping Sample
+
+.left[![](goshopping_arch.png)]
+
+---
+# Go Shopping Sample - Tech 
+
+* `go micro` Framework
+  * [https://micro.mu/](https://micro.mu/)
+* Ports and Adapters are _services_
+  * Not boilerplate inside service
+* Ecosystem-aware from bottom-up
+* Dynamic Service Discovery
+* Prometheus Monitoring
+* ... and much more  
+
+
+---
+# API First
+
+API First is **NOT**:
+
+* RESTful Endpoint First 
+* Swagger-First
+* One API to Rule them All 
+
+API First is:
+* A strict, _semantically versioned_, interaction specification.
+* A team and organization-wide discipline
+* Different consumers, channels may need different APIs 
+  * Ports and Adapters 
+
+---
+# Defining the Warehouse Service 
+
+* Protocol Buffer IDL
+* gRPC Service 
+
+```protobuf
+syntax = "proto3";
+
+package warehouse;
+
+service Warehouse {
+    rpc GetWarehouseDetails(DetailsRequest) returns (DetailsResponse);
+}
+
+message DetailsRequest {
+    string SKU = 1;
+}
+
+message DetailsResponse {
+    string SKU = 1;
+    uint32 StockRemaining = 2;
+    string Manufacturer = 3;
+    string ModelNumber = 4;
+}
+```
+
+---
+# Service Implementation
+
+```go
+
+package service
+
+import (
+	"github.com/autodidaddict/go-shopping/warehouse/proto"
+	"golang.org/x/net/context"
+)
+
+type warehouseService struct{}
+
+// NewWarehouseService returns an instance of a warehouse handler
+func NewWarehouseService() warehouse.WarehouseHandler {
+	return &warehouseService{}
+}
+
+func (w *warehouseService) GetWarehouseDetails(ctx context.Context, 
+  request *warehouse.DetailsRequest,
+  response *warehouse.DetailsResponse) error {
+
+	response.Manufacturer = "TOSHIBA"
+	response.ModelNumber = "T-1000"
+	response.SKU = request.SKU
+	response.StockRemaining = 35
+	return nil
+}
+```
+
+---
+# Let's do some Live Demos
+What could possibly go wrong? 
+
+![](whatcouldgowrong.jpg)
+
+    </textarea>
+  <script src="https://remarkjs.com/downloads/remark-latest.min.js">
+
+  </script>
+  <script>
+    var slideshow = remark.create({
+      highlightStyle: 'tomorrow-night-eighties',
+      highlightLines: true,
+      countIncrementalSlides: false
+    });
+  </script>
+</body>
+
+</html>
