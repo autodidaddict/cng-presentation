@@ -67,6 +67,7 @@ _Go to **gopherize.me** for your Gopher Avatar_
 ---
 # Why Go?
 
+
 * Fast
 * Low memory, CPU, and Disk footprint
 * Docker images from `SCRATCH`
@@ -260,23 +261,34 @@ We went through an entire tech stack without once considering what we're buildin
 
 ---
 # Ports & Adapters in a μService Ecosystem
+--
+
 * API Gateways
+--
+
 * Aggregator Services
+--
+
 * Message Brokers
   * Topics
   * Pub/Sub
+--
+
 * ACL / Translators (Adapters)
+--
+
 * Dynamic Service Discovery
+--
+
 * External Configuration
+--
+
 * _Adapter paths_ through system
   * Gateways, Proxies
   * Translators on Data Streams / Queues
 --
 
 * Hexagonal arch inside and outside of services
-
----
-# TBD
 
 ---
 # The Shopping List We Ignore
@@ -322,6 +334,17 @@ We went through an entire tech stack without once considering what we're buildin
 * Prometheus Monitoring
 * ... and much more  
 
+---
+# Framework vs Library
+
+* Opinionated vs boilerplate
+* Spend boilerplate to insulate from opinions
+  * Mitigate ceremony with code generation?
+* Go-kit - suite of libraries, incur BP cost
+* Go-micro - opinionated, less BP
+  * Spring Boot - example of opinionated framework 
+
+.right[![](opinion_v_boiler.png)]
 
 ---
 # API First
@@ -354,14 +377,18 @@ service Warehouse {
 }
 
 message DetailsRequest {
-    string SKU = 1;
+    string sku = 1;
 }
 
 message DetailsResponse {
-    string SKU = 1;
-    uint32 StockRemaining = 2;
-    string Manufacturer = 3;
-    string ModelNumber = 4;
+    WarehouseDetails details = 1;
+}
+
+message WarehouseDetails {
+    string sku = 1;
+    uint32 stock_remaining = 2;
+    string manufacturer = 3;
+    string model_number = 4;
 }
 ```
 
@@ -401,6 +428,31 @@ func (w *warehouseService) GetWarehouseDetails(ctx context.Context,
 What could possibly go wrong? 
 
 ![](whatcouldgowrong.jpg)
+---
+# Lessons Learned
+
+* Question Everything
+* Beware of Protobuf Default Values
+* Service-first development
+* Code is the _easiest_ and _simplest_ part of Microservices
+  * _NFRs are everything_ - logging, metrics, alerts, discovery, health, autoscale, async messaging, etc.
+* Decide where you want to be on the opinion vs boilerplate curve 
+
+---
+
+# .top[Next Steps] .top[![](footprints_sm.png)]
+
+* Create Services
+* Try out `go-micro` 
+* Try out `go-kit`
+* Embrace Go 
+* Create your Gopher Avatar (gopherize.me)
+* Go Shopping http://github.com/autodidaddict/go-shopping 
+
+---
+# Q & A
+
+.middle[![](bluequestions.jpg)] 
 
     </textarea>
   <script src="https://remarkjs.com/downloads/remark-latest.min.js">
